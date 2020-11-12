@@ -9,10 +9,6 @@ set(CMAKE_CXX_STANDARD 11)
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-
 # In debug mode, add -DDEBUG
 add_compile_options("$<$<CONFIG:DEBUG>:-DDEBUG>")
 
@@ -26,10 +22,10 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-local-typedefs")
 
     # Static library: -fPIC
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -march=native")
 
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -march=native -fstack-protector")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fstack-protector")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 endif()
 
 
@@ -37,7 +33,7 @@ endif()
 # Subprojects
 
 if (NOT TARGET zstd)
-    add_subdirectory(zstd zstd)
+    add_subdirectory(zstd)
 endif()
 
 
@@ -59,13 +55,20 @@ include_directories(include)
 ################################################################################
 # Targets
 
-# zdepth library
+if (WIN32 AND BUILD_SHARED_LIBS)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    if (WIN32)
+        set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+        include(GenerateExportHeader)
+    endif ()
+endif ()
 
-add_library(zdepth STATIC ${SOURCE_FILES})
+# zdepth library
+add_library(zdepth ${SOURCE_FILES})
 add_library(zdepth::zdepth ALIAS zdepth)
 
 target_link_libraries(zdepth PUBLIC zstd)
-
+set_target_properties(zdepth PROPERTIES PUBLIC_HEADER include/zdepth.hpp)
 target_include_directories(zdepth PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:include>"
@@ -80,24 +83,24 @@ target_link_libraries(zdepth_test PRIVATE zdepth)
 ################################################################################
 # Install
 
-install(FILES LICENSE DESTINATION ".")
-install(FILES README.md DESTINATION ".")
-install(FILES ${INCLUDE_FILES} DESTINATION include)
+include(GNUInstallDirs)
 
-# Disable the rest of this because it does not seem to work on Linux
-return()
-
-install(
-    TARGETS
-        zdepth
-        zstd
-    EXPORT
-        zdepth-targets
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(FILES README.md DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS zdepth
+    EXPORT zdepth-target
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(EXPORT zdepth-target DESTINATION ${CMAKE_INSTALL_PREFIX}/share/Zdepth/cmake
+  EXPORT_LINK_INTERFACE_LIBRARIES)
+install(EXPORT zstd-target DESTINATION ${CMAKE_INSTALL_PREFIX}/share/Zdepth/cmake
+  EXPORT_LINK_INTERFACE_LIBRARIES)
 
-install(FILES cmake/zdepth-config.cmake DESTINATION cmake)
-install(FILES cmake/zdepth-config-version.cmake DESTINATION cmake)
-install(EXPORT zdepth-targets DESTINATION cmake)
-install(FILES "$<TARGET_FILE:zdepth>" DESTINATION lib)
+include(CMakePackageConfigHelpers)
+configure_package_config_file(cmake/ZdepthConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/ZdepthConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/share/Zdepth/cmake)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ZdepthConfig.cmake
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/share/Zdepth/cmake)
