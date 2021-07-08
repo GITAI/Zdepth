@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(zdepth LANGUAGES CXX)
 include("cmake/zdepth-config-version.cmake")
 set(CMAKE_CXX_STANDARD 11)
-
+set(CMAKE_CXX_COMPILER /usr/bin/g++-10)
 
 ################################################################################
 # Build Options
